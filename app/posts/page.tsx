@@ -8,26 +8,28 @@ import { signOut } from "firebase/auth";
 import { useAuth } from "@/context/AuthContext";
 import PrivateRoute from "../../components/PrivateRoute";
 import { db, auth } from "@/lib/firebase";
-import { Post } from "@/types";
+import { Post, Category } from "@/types";
 import { Footer } from "@/app/sections/Footer";
-import {Menu} from "@/app/sections/Menu";
+import { Menu } from "@/app/sections/Menu";
 
-const POSTS_PER_PAGE = 9; // Количество постов на странице (как в макете)
+const POSTS_PER_PAGE = 9;
 
 const Posts: FC = () => {
     const [posts, setPosts] = useState<Post[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [likedPosts, setLikedPosts] = useState<string[]>([]);
     const [favoritePosts, setFavoritePosts] = useState<string[]>([]);
-    const [userName, setUserName] = useState<string>(""); // Имя пользователя
-    const [filterMode, setFilterMode] = useState<"all" | "liked" | "favorite">("all"); // Режим фильтрации
-    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false); // Состояние для бургер-меню
+    const [userName, setUserName] = useState<string>("");
+    const [filterMode, setFilterMode] = useState<"all" | "liked" | "favorite">("all");
+    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     const router = useRouter();
     const { user } = useAuth();
 
     useEffect(() => {
-        const fetchPosts = async () => {
+        const fetchPostsAndCategories = async () => {
+            // Загрузка постов
             const postsRef = collection(db, "posts");
             const snapshot = await getDocs(postsRef);
             const postsData = snapshot.docs.map((doc) => ({
@@ -35,6 +37,15 @@ const Posts: FC = () => {
                 ...doc.data(),
             } as Post));
             setPosts(postsData);
+
+            // Загрузка категорий
+            const categoriesRef = collection(db, "categories");
+            const categoriesSnapshot = await getDocs(categoriesRef);
+            const categoriesData = categoriesSnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            } as Category));
+            setCategories(categoriesData);
         };
 
         const fetchUserData = async () => {
@@ -47,7 +58,6 @@ const Posts: FC = () => {
                     setFavoritePosts(data.favoritePosts || []);
                     setUserName(data.displayName || user.email?.split("@")[0] || "Пользователь");
                 } else {
-                    // Если данных нет, создаём запись с email
                     await setDoc(userRef, {
                         displayName: user.email?.split("@")[0],
                         email: user.email,
@@ -59,7 +69,7 @@ const Posts: FC = () => {
             }
         };
 
-        fetchPosts();
+        fetchPostsAndCategories();
         fetchUserData();
     }, [user]);
 
@@ -104,12 +114,12 @@ const Posts: FC = () => {
     };
 
     const handleProfileClick = () => {
-        setIsMenuOpen(false); // Закрыть меню при переходе
-        router.push("/upload"); // Переход на страницу загрузки
+        setIsMenuOpen(false);
+        router.push("/upload");
     };
 
     const handleLogout = async () => {
-        setIsMenuOpen(false); // Закрыть меню при выходе
+        setIsMenuOpen(false);
         await signOut(auth);
         router.push("/auth");
     };
@@ -118,25 +128,29 @@ const Posts: FC = () => {
         setIsMenuOpen(!isMenuOpen);
     };
 
+    // Функция для получения названия категории по ID
+    const getCategoryName = (categoryId?: string) => {
+        if (!categoryId) return "Без категории";
+        const category = categories.find((cat) => cat.id === categoryId);
+        return category ? category.name : "Без категории";
+    };
+
     return (
         <PrivateRoute>
             <div className="min-h-screen bg-gray-200 flex flex-col">
                 {/* Header */}
                 <header className="p-4 bg-white shadow-md">
                     <div className="max-w-6xl mx-auto flex items-center justify-between">
-                        {/* Логотип */}
                         <div className="flex items-center">
                             <Image
                                 src="/img/logo.png"
                                 alt="IT.PROGRESS Logo"
                                 width={40}
                                 height={40}
-                                className="mr-2"
+                                className="mr-2 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14"
                             />
-                            <h1 className="text-4xl sm:text-4xl text-2xl font-bold text-gray-600">IT.PROGRESS</h1>
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-600">IT.PROGRESS</h1>
                         </div>
-
-                        {/* Иконки профиля, фильтры и выход */}
                         <div className="flex items-center gap-4 sm:flex hidden">
                             <button
                                 onClick={() => setFilterMode(filterMode === "liked" ? "all" : "liked")}
@@ -204,8 +218,6 @@ const Posts: FC = () => {
                                 Выход
                             </button>
                         </div>
-
-                        {/* Бургер-иконка для мобильных устройств */}
                         <div className="sm:hidden flex items-center">
                             <button onClick={toggleMenu} className="text-gray-600">
                                 <svg
@@ -225,8 +237,6 @@ const Posts: FC = () => {
                             </button>
                         </div>
                     </div>
-
-                    {/* Мобильное меню */}
                     {isMenuOpen && (
                         <div className="sm:hidden bg-white shadow-md p-4 absolute top-16 left-0 right-0 z-50">
                             <div className="flex flex-col items-center gap-4">
@@ -308,7 +318,7 @@ const Posts: FC = () => {
 
                 {/* Основной контент */}
                 <main className="flex-1 p-6">
-                    <Menu/>
+                    <Menu />
                     <div className="max-w-6xl mx-auto">
                         <input
                             type="text"
@@ -332,6 +342,9 @@ const Posts: FC = () => {
                                         />
                                         <div className="p-4">
                                             <h2 className="text-lg font-semibold">{post.title}</h2>
+                                            <p className="text-sm text-gray-500">
+                                                Категория: {getCategoryName(post.categoryId)}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="flex justify-between p-4">

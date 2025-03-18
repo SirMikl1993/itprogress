@@ -3,8 +3,8 @@ import "../app/globals.css";
 import React from "react";
 
 export const metadata = {
-    title: "My Forum App",
-    description: "A forum with articles and comments",
+    title: "IT.PROGRESS",
+    description: "Всё о программировании – ваш портал в мир кода",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
