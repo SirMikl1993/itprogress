@@ -82,11 +82,15 @@ const PostDetail: FC = () => {
                 await addDoc(collection(db, `posts/${postId}/comments`), {
                     text: newComment,
                     userName: user.displayName || user.email?.split("@")[0],
-                    userId: user.uid,
+                    userId: user?.uid,
                     timestamp: new Date(),
+                    createdAt: new Date(), // Добавляем поле createdAt
                 });
                 setNewComment("");
                 await fetchPostAndUserData();
+                // Обновите список комментариев
+                const commentsSnapshot = await getDocs(collection(db, "posts", postId, "comments"));
+                setComments(commentsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Comment)));
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : "Ошибка при добавлении комментария";
                 alert(errorMessage);
