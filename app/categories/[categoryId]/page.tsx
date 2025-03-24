@@ -2,73 +2,113 @@
 
 import { FC, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import Image from "next/image"; // Import Image component
+import { collection, getDocs, doc, getDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Post, Category } from "@/types";
+import { useAuth } from "@/context/AuthContext";
+import { Post, Category, Comment } from "@/types";
 import { Footer } from "@/app/sections/Footer";
+import Link from "next/link";
 
-const POSTS_PER_PAGE = 9;
-
-const CategoryPosts: FC = () => {
-    const { categoryId } = useParams<{ categoryId: string }>();
-    const [category, setCategory] = useState<Category | null>(null);
+const CategoryPage: FC = () => {
     const [posts, setPosts] = useState<Post[]>([]);
-    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [category, setCategory] = useState<Category | null>(null);
+    const [comments, setComments] = useState<Comment[]>([]);
+    const [newComment, setNewComment] = useState("");
+    const { categoryId } = useParams();
     const router = useRouter();
+    const { user } = useAuth();
 
-    // Загрузка категории и постов
     useEffect(() => {
-        const fetchCategoryAndPosts = async () => {
-            if (!categoryId) return;
+        const fetchData = async () => {
+            if (typeof categoryId !== "string") return;
 
-            try {
-                // Загрузка данных категории
-                const categoryRef = doc(db, "categories", categoryId);
-                const categoryDoc = await getDoc(categoryRef);
-                if (categoryDoc.exists()) {
-                    setCategory({ id: categoryDoc.id, ...categoryDoc.data() } as Category);
-                } else {
-                    console.error("Категория не найдена");
-                    return;
-                }
-
-                // Загрузка постов
-                const postsRef = collection(db, "posts");
-                const snapshot = await getDocs(postsRef);
-                const postsData = snapshot.docs
-                    .map((doc) => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    } as Post))
-                    .filter((post) => post.categoryId === categoryId); // Исправлено: post.categoryId вместо post.category
-                setPosts(postsData);
-            } catch (error) {
-                console.error("Ошибка загрузки данных:", error);
+            const categoryRef = doc(db, "categories", categoryId);
+            const categoryDoc = await getDoc(categoryRef);
+            if (categoryDoc.exists()) {
+                setCategory({ id: categoryDoc.id, ...categoryDoc.data() } as Category);
             }
+
+            const postsRef = collection(db, "posts");
+            const postsSnapshot = await getDocs(postsRef);
+            const postsData = postsSnapshot.docs
+                .map((doc) => ({ id: doc.id, ...doc.data() } as Post))
+                .filter((post) => post.categoryId === categoryId);
+            setPosts(postsData);
+
+            const allComments: Comment[] = [];
+            for (const post of postsData) {
+                const commentsRef = collection(db, `posts/${post.id}/comments`);
+                const commentsSnapshot = await getDocs(commentsRef);
+                const postComments = commentsSnapshot.docs.map((doc) => ({
+                    id: doc.id,
+                    postId: post.id,
+                    ...doc.data(),
+                    timestamp: doc.data().timestamp?.toDate(),
+                } as Comment));
+                allComments.push(...postComments);
+            }
+            setComments(allComments);
         };
 
-        fetchCategoryAndPosts();
+        fetchData();
     }, [categoryId]);
 
-    const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE);
-    const paginatedPosts = posts.slice(
-        (currentPage - 1) * POSTS_PER_PAGE,
-        currentPage * POSTS_PER_PAGE
-    );
+    const handleAddComment = async (postId: string) => {
+        if (!user) {
+            alert("Пожалуйста, войдите, чтобы оставить комментарий.");
+            router.push("/login");
+            return;
+        }
 
-    const handlePostClick = (id: string) => {
-        router.push(`/posts/${id}`);
+        if (!newComment.trim()) {
+            alert("Комментарий не может быть пустым.");
+            return;
+        }
+
+        try {
+            const userRef = doc(db, "users", user.uid);
+            const userDoc = await getDoc(userRef);
+            const userName = userDoc.exists() ? userDoc.data().displayName || "Аноним" : "Аноним";
+
+            const commentData = {
+                text: newComment,
+                userId: user.uid,
+                userName,
+                timestamp: new Date(),
+            };
+
+            const commentsRef = collection(db, `posts/${postId}/comments`);
+            const docRef = await addDoc(commentsRef, commentData);
+
+            const newCommentData: Comment = {
+                id: docRef.id,
+                postId,
+                ...commentData,
+                timestamp: commentData.timestamp,
+            };
+
+            setComments([...comments, newCommentData]);
+            setNewComment("");
+        } catch (error) {
+            console.error("Ошибка добавления комментария:", error);
+        }
     };
 
-    if (!category) return <div className="text-center p-6">Loading...</div>;
+    const formatDate = (date: Date | undefined) =>
+        date
+            ? `${date.toLocaleDateString("ru-RU")} ${date.toLocaleTimeString("ru-RU", {
+                hour: "2-digit",
+                minute: "2-digit",
+            })}`
+            : "Не указано";
 
     return (
         <div className="min-h-screen bg-gray-200 flex flex-col">
-            {/* Header */}
             <header className="p-4 bg-white shadow-md">
                 <div className="max-w-6xl mx-auto flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-600">
-                        Посты в категории: {category.name}
+                        Категория: {category?.name || "Загрузка..."}
                     </h1>
                     <button
                         onClick={() => router.push("/posts")}
@@ -79,59 +119,68 @@ const CategoryPosts: FC = () => {
                 </div>
             </header>
 
-            {/* Основной контент */}
             <main className="flex-1 p-6">
                 <div className="max-w-6xl mx-auto">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {paginatedPosts.map((post) => (
-                            <div
-                                key={post.id}
-                                className="bg-white rounded-lg shadow-md cursor-pointer hover:shadow-lg transition"
-                                onClick={() => handlePostClick(post.id)}
-                            >
-                                <img
-                                    src={post.imageUrl}
-                                    alt={post.title}
-                                    className="w-full h-40 object-cover rounded-t-lg"
-                                />
-                                <div className="p-4">
-                                    <h2 className="text-lg font-semibold">{post.title}</h2>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {paginatedPosts.length === 0 && (
-                        <p className="text-center text-gray-500 mt-6">
-                            Посты в этой категории не найдены.
-                        </p>
-                    )}
-
-                    {/* Пагинация */}
-                    {totalPages > 1 && (
-                        <div className="flex justify-center mt-8">
-                            {Array.from({ length: totalPages }, (_, index) => (
-                                <button
-                                    key={index + 1}
-                                    onClick={() => setCurrentPage(index + 1)}
-                                    className={`mx-1 px-3 py-1 rounded-full ${
-                                        currentPage === index + 1
-                                            ? "bg-teal-500 text-white"
-                                            : "bg-gray-300 text-gray-600 hover:bg-gray-400"
-                                    }`}
+                    {posts.length === 0 ? (
+                        <p className="text-gray-500">Посты не найдены.</p>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {posts.map((post) => (
+                                <div
+                                    key={post.id}
+                                    className="bg-white rounded-lg shadow-md p-4 flex flex-col"
                                 >
-                                    {index + 1}
-                                </button>
+                                    <Link href={`/posts/${post.id}`}>
+                                        <Image
+                                            src={post.imageUrl}
+                                            alt={post.title}
+                                            width={400}
+                                            height={160}
+                                            className="w-full h-40 object-cover rounded-t-lg mb-4"
+                                        />
+                                        <h2 className="text-lg font-semibold">{post.title}</h2>
+                                    </Link>
+                                    <div className="mt-4">
+                                        <h3 className="text-sm font-semibold mb-2">Комментарии</h3>
+                                        {comments
+                                            .filter((comment) => comment.postId === post.id)
+                                            .map((comment) => (
+                                                <div key={comment.id} className="mb-2">
+                                                    <p className="text-sm font-medium">
+                                                        {comment.userName || "Аноним"}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600">{comment.text}</p>
+                                                    <p className="text-xs text-gray-500">
+                                                        {formatDate(comment.timestamp)}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        <div className="mt-2">
+                                            <textarea
+                                                value={newComment}
+                                                onChange={(e) => setNewComment(e.target.value)}
+                                                placeholder="Добавить комментарий..."
+                                                className="w-full p-2 border rounded-lg"
+                                                rows={2}
+                                            />
+                                            <button
+                                                onClick={() => handleAddComment(post.id)}
+                                                className="mt-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition"
+                                            >
+                                                Отправить
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     )}
                 </div>
             </main>
 
-            {/* Footer */}
             <Footer />
         </div>
     );
 };
 
-export default CategoryPosts;
+export default CategoryPage;

@@ -2,6 +2,7 @@
 
 import { FC, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image"; // Import Image component
 import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -33,9 +34,9 @@ const AdminPanel: FC = () => {
     const [editContent, setEditContent] = useState("");
     const [editCategoryId, setEditCategoryId] = useState("");
     const [editImage, setEditImage] = useState<File | null>(null);
-    const [searchQuery, setSearchQuery] = useState(""); // Состояние для поискового запроса
-    const [currentPage, setCurrentPage] = useState(1); // Текущая страница
-    const postsPerPage = 6; // Количество постов на странице
+    const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const postsPerPage = 6;
     const router = useRouter();
     const { user } = useAuth();
 
@@ -93,7 +94,6 @@ const AdminPanel: FC = () => {
         fetchData();
     }, [user, router]);
 
-    // Фильтрация и сортировка постов
     const filteredPosts = posts.filter((post) =>
         post.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -110,7 +110,6 @@ const AdminPanel: FC = () => {
         }
     });
 
-    // Пагинация
     const indexOfLastPost = currentPage * postsPerPage;
     const indexOfFirstPost = indexOfLastPost - postsPerPage;
     const currentPosts = sortedPosts.slice(indexOfFirstPost, indexOfLastPost);
@@ -282,14 +281,13 @@ const AdminPanel: FC = () => {
                     <div className="max-w-6xl mx-auto">
                         <section className="mb-8">
                             <h2 className="text-xl font-semibold mb-4">Список постов</h2>
-                            {/* Поиск и сортировка */}
                             <div className="mb-4 flex gap-4 flex-wrap">
                                 <input
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => {
                                         setSearchQuery(e.target.value);
-                                        setCurrentPage(1); // Сбрасываем страницу при поиске
+                                        setCurrentPage(1);
                                     }}
                                     placeholder="Поиск по названию..."
                                     className="p-2 border rounded-lg flex-1 min-w-[200px]"
@@ -298,7 +296,7 @@ const AdminPanel: FC = () => {
                                     value={sortBy}
                                     onChange={(e) => {
                                         setSortBy(e.target.value as "date" | "title");
-                                        setCurrentPage(1); // Сбрасываем страницу при изменении сортировки
+                                        setCurrentPage(1);
                                     }}
                                     className="p-2 border rounded-lg"
                                 >
@@ -309,7 +307,7 @@ const AdminPanel: FC = () => {
                                     value={sortOrder}
                                     onChange={(e) => {
                                         setSortOrder(e.target.value as "asc" | "desc");
-                                        setCurrentPage(1); // Сбрасываем страницу при изменении порядка
+                                        setCurrentPage(1);
                                     }}
                                     className="p-2 border rounded-lg"
                                 >
@@ -386,9 +384,11 @@ const AdminPanel: FC = () => {
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        <img
+                                                        <Image
                                                             src={post.imageUrl}
                                                             alt={post.title}
+                                                            width={400}
+                                                            height={160}
                                                             className="w-full h-40 object-cover rounded-t-lg mb-4"
                                                         />
                                                         <h3 className="text-lg font-semibold">{post.title}</h3>
@@ -419,18 +419,25 @@ const AdminPanel: FC = () => {
                                         ))}
                                     </div>
 
-                                    {/* Пагинация */}
                                     {sortedPosts.length > postsPerPage && (
-                                        <div className="flex justify-center mt-4 gap-2">
-                                            {Array.from({length: totalPages}, (_, i) => i + 1).map((page) => (
-                                                <button
-                                                    key={page}
-                                                    onClick={() => paginate(page)}
-                                                    className={`px-4 py-2 rounded-lg ${currentPage === page ? "bg-teal-500 text-white" : "bg-gray-300 text-black"} hover:bg-teal-600 transition`}
-                                                >
-                                                    {page}
-                                                </button>
-                                            ))}
+                                        <div className="flex justify-center mt-4">
+                                            <button
+                                                onClick={() => paginate(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="px-4 py-2 bg-gray-300 text-black rounded-l disabled:opacity-50 hover:bg-gray-400 transition"
+                                            >
+                                                Предыдущая
+                                            </button>
+                                            <span className="px-4 py-2 bg-gray-200">
+                                                Страница {currentPage} из {totalPages}
+                                            </span>
+                                            <button
+                                                onClick={() => paginate(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="px-4 py-2 bg-gray-300 text-black rounded-r disabled:opacity-50 hover:bg-gray-400 transition"
+                                            >
+                                                Следующая
+                                            </button>
                                         </div>
                                     )}
                                 </>
