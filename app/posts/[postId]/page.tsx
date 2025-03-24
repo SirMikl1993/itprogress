@@ -1,4 +1,3 @@
-// app/posts/[postId]/page.tsx
 "use client";
 
 import { FC, useEffect, useState, useCallback } from "react";
@@ -12,14 +11,15 @@ import { Post, Comment } from "@/types";
 const PostDetail: FC = () => {
     const { postId } = useParams<{ postId: string }>();
     const [post, setPost] = useState<Post | null>(null);
+    const [authorName, setAuthorName] = useState<string>("Неизвестный автор"); // Состояние для имени автора
     const [comments, setComments] = useState<Comment[]>([]);
     const [newComment, setNewComment] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [liked, setLiked] = useState<boolean>(false);
     const [favorited, setFavorited] = useState<boolean>(false);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1); // Текущая страница
-    const commentsPerPage = 5; // Количество комментариев на страницу
+    const [currentPage, setCurrentPage] = useState(1);
+    const commentsPerPage = 5;
     const router = useRouter();
     const { user } = useAuth();
 
@@ -27,15 +27,28 @@ const PostDetail: FC = () => {
         if (!postId) return;
 
         try {
+            // Загрузка поста
             const postRef = doc(db, "posts", postId as string);
             const docSnap = await getDoc(postRef);
             if (docSnap.exists()) {
                 const postData = { id: docSnap.id, ...docSnap.data() } as Post;
                 setPost(postData);
+
+                // Загрузка имени автора
+                if (postData.userId) {
+                    const userRef = doc(db, "users", postData.userId);
+                    const userDoc = await getDoc(userRef);
+                    if (userDoc.exists()) {
+                        const userData = userDoc.data();
+                        setAuthorName(userData.displayName || userData.email?.split("@")[0] || "Неизвестный автор");
+                    }
+                }
             } else {
                 setError("Пост не найден");
+                return;
             }
 
+            // Загрузка комментариев
             const commentsRef = collection(db, `posts/${postId}/comments`);
             const commentsSnapshot = await getDocs(commentsRef);
             const loadedComments = commentsSnapshot.docs.map((doc) => ({
@@ -44,13 +57,13 @@ const PostDetail: FC = () => {
                 timestamp: doc.data().timestamp?.toDate(),
             } as Comment));
 
-            // Сортировка комментариев по дате (от позднего к раннему)
             const sortedComments = loadedComments.sort((a, b) => {
                 if (!a.timestamp || !b.timestamp) return 0;
                 return b.timestamp.getTime() - a.timestamp.getTime();
             });
             setComments(sortedComments);
 
+            // Проверка лайков и избранного
             if (user) {
                 const userRef = doc(db, "users", user.uid);
                 const userDoc = await getDoc(userRef);
@@ -77,25 +90,25 @@ const PostDetail: FC = () => {
             router.push("/auth");
             return;
         }
-        if (newComment.trim()) {
-            try {
-                await addDoc(collection(db, `posts/${postId}/comments`), {
-                    text: newComment,
-                    userName: user.displayName || user.email?.split("@")[0],
-                    userId: user?.uid,
-                    timestamp: new Date(),
-                    createdAt: new Date(), // Добавляем поле createdAt
-                });
-                setNewComment("");
-                await fetchPostAndUserData();
-                // Обновите список комментариев
-                const commentsSnapshot = await getDocs(collection(db, "posts", postId, "comments"));
-                setComments(commentsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Comment)));
-            } catch (err: unknown) {
-                const errorMessage = err instanceof Error ? err.message : "Ошибка при добавлении комментария";
-                alert(errorMessage);
-                console.error("Ошибка в handleAddComment:", errorMessage);
-            }
+        if (!newComment.trim()) {
+            alert("Комментарий не может быть пустым.");
+            return;
+        }
+
+        try {
+            await addDoc(collection(db, `posts/${postId}/comments`), {
+                text: newComment,
+                userName: user.displayName || user.email?.split("@")[0],
+                userId: user?.uid,
+                timestamp: new Date(),
+                createdAt: new Date().toISOString(),
+            });
+            setNewComment("");
+            await fetchPostAndUserData();
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "Ошибка при добавлении комментария";
+            alert(errorMessage);
+            console.error("Ошибка в handleAddComment:", errorMessage);
         }
     };
 
@@ -103,7 +116,7 @@ const PostDetail: FC = () => {
         if (!user || !post) return;
         const userRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userRef);
-        let newLikedPosts = [];
+        let newLikedPosts: string[] = [];
         if (userDoc.exists()) {
             newLikedPosts = (userDoc.data().likedPosts || []).filter((id: string) => id !== postId);
         }
@@ -118,7 +131,7 @@ const PostDetail: FC = () => {
         if (!user || !post) return;
         const userRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userRef);
-        let newFavoritePosts = [];
+        let newFavoritePosts: string[] = [];
         if (userDoc.exists()) {
             newFavoritePosts = (userDoc.data().favoritePosts || []).filter((id: string) => id !== postId);
         }
@@ -129,17 +142,17 @@ const PostDetail: FC = () => {
         await setDoc(userRef, { favoritePosts: newFavoritePosts }, { merge: true });
     };
 
-    const formatDate = (date: Date) =>
-        `${date.toLocaleDateString("ru-RU")} ${date.toLocaleTimeString("ru-RU", {
-            hour: "2-digit",
-            minute: "2-digit",
-        })}`;
+    const formatDate = (date: Date | undefined) =>
+        date
+            ? `${date.toLocaleDateString("ru-RU")} ${date.toLocaleTimeString("ru-RU", {
+                hour: "2-digit",
+                minute: "2-digit",
+            })}`
+            : "Не указано";
 
-    // Открытие/закрытие модального окна для изображения
     const openImageModal = () => setIsImageModalOpen(true);
     const closeImageModal = () => setIsImageModalOpen(false);
 
-    // Логика пагинации
     const indexOfLastComment = currentPage * commentsPerPage;
     const indexOfFirstComment = indexOfLastComment - commentsPerPage;
     const currentComments = comments.slice(indexOfFirstComment, indexOfLastComment);
@@ -159,7 +172,7 @@ const PostDetail: FC = () => {
                 Назад на главную
             </button>
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div style={{ position: "relative", width: "100%", paddingTop: "56.25%" /* 16:9 Aspect Ratio */ }}>
+                <div style={{ position: "relative", width: "100%", paddingTop: "56.25%" }}>
                     <Image
                         src={post.imageUrl}
                         alt={post.title}
@@ -170,16 +183,42 @@ const PostDetail: FC = () => {
                     />
                 </div>
                 <div className="p-6">
+                    {/* Название */}
                     <h1 className="text-2xl font-bold bg-gray-100 p-3 rounded-lg mb-4 text-center">
-                        {post.title || "ppp"}
+                        {post.title || "Без названия"}
                     </h1>
-                    <div className="bg-gray-100 p-3 rounded-lg mb-6 w-full">
-                        <p className="text-gray-600 text-center w-full">{post.description || "ppp"}</p>
+
+                    {/* Описание */}
+                    <div className="bg-gray-100 p-3 rounded-lg mb-4 w-full">
+                        <h2 className="text-lg font-semibold text-gray-700 mb-2">Описание:</h2>
+                        <p className="text-gray-600 text-center w-full">{post.description || "Без описания"}</p>
+                    </div>
+
+                    {/* Содержимое */}
+                    <div className="bg-gray-100 p-3 rounded-lg mb-4 w-full">
+                        <h2 className="text-lg font-semibold text-gray-700 mb-2">Содержимое:</h2>
+                        <p className="text-gray-600 w-full whitespace-pre-wrap">{post.content || "Без содержимого"}</p>
+                    </div>
+
+                    {/* Дата создания */}
+                    <div className="bg-gray-100 p-3 rounded-lg mb-4 w-full">
+                        <h2 className="text-lg font-semibold text-gray-700 mb-2">Дата создания:</h2>
+                        <p className="text-gray-600 text-center w-full">
+                            {post.createdAt ? formatDate(new Date(post.createdAt)) : "Не указано"}
+                        </p>
+                    </div>
+
+                    {/* Автор */}
+                    <div className="bg-gray-100 p-3 rounded-lg mb-4 w-full">
+                        <h2 className="text-lg font-semibold text-gray-700 mb-2">Автор:</h2>
+                        <p className="text-gray-600 text-center w-full">{authorName}</p>
                     </div>
                 </div>
+
+                {/* Комментарии */}
                 <div className="p-6 border-t border-gray-200 w-full">
                     <h2 className="text-xl font-semibold mb-4 text-center">Комментарии</h2>
-                    <div className="max-h-96 overflow-y-auto"> {/* Контейнер с прокруткой */}
+                    <div className="max-h-96 overflow-y-auto">
                         {comments.length === 0 ? (
                             <p className="text-gray-500 text-center">Комментариев пока нет.</p>
                         ) : (
@@ -194,11 +233,11 @@ const PostDetail: FC = () => {
                                     />
                                     <div className="flex items-center gap-2 w-full">
                                         <p className="font-semibold">
-                                            {comment.userName || "Аноним"} @{comment.userName || "user2"}
+                                            {comment.userName || "Аноним"} @{comment.userName || "user"}
                                         </p>
-                                        <p className="text-gray-800 flex-1 break-words">{comment.text || "my first comment"}</p>
+                                        <p className="text-gray-800 flex-1 break-words">{comment.text}</p>
                                         <p className="text-gray-500 text-sm">
-                                            {comment.timestamp ? formatDate(comment.timestamp) : "26.11.2024 10:25"}
+                                            {comment.timestamp ? formatDate(comment.timestamp) : "Дата неизвестна"}
                                         </p>
                                     </div>
                                     {index < currentComments.length - 1 && <hr className="w-full border-gray-200 my-4" />}
@@ -206,7 +245,6 @@ const PostDetail: FC = () => {
                             ))
                         )}
                     </div>
-                    {/* Пагинация */}
                     {comments.length > commentsPerPage && (
                         <div className="flex justify-center mt-4">
                             <button
@@ -217,8 +255,8 @@ const PostDetail: FC = () => {
                                 Предыдущая
                             </button>
                             <span className="px-4 py-2 bg-gray-200">
-                Страница {currentPage} из {totalPages}
-              </span>
+                                Страница {currentPage} из {totalPages}
+                            </span>
                             <button
                                 onClick={() => paginate(currentPage + 1)}
                                 disabled={currentPage === totalPages}
@@ -229,12 +267,12 @@ const PostDetail: FC = () => {
                         </div>
                     )}
                     <div className="mt-6 w-full">
-            <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Напишите комментарий..."
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-            />
+                        <textarea
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Напишите комментарий..."
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                        />
                         <button
                             onClick={handleAddComment}
                             className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -243,6 +281,8 @@ const PostDetail: FC = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* Кнопки лайка и избранного */}
                 <div className="p-6 flex justify-end gap-4 border-t border-gray-200">
                     <button
                         onClick={handleLike}
@@ -301,7 +341,6 @@ const PostDetail: FC = () => {
                 </div>
             </div>
 
-            {/* Модальное окно для изображения */}
             {isImageModalOpen && (
                 <div
                     className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
@@ -312,11 +351,11 @@ const PostDetail: FC = () => {
                             src={post.imageUrl}
                             alt={post.title}
                             layout="responsive"
-                            width={post.imageUrl ? 800 : 0} // Динамическая ширина
-                            height={post.imageUrl ? 600 : 0} // Динамическая высота
+                            width={800}
+                            height={600}
                             objectFit="contain"
                             className="rounded-lg max-w-full max-h-screen"
-                            onClick={(e) => e.stopPropagation()} // Предотвращаем закрытие при клике на само изображение
+                            onClick={(e) => e.stopPropagation()}
                         />
                         <button
                             className="absolute top-2 right-2 text-white text-2xl font-bold"

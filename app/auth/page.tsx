@@ -4,22 +4,21 @@ import { FC, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 const Auth: FC = () => {
     const [email, setEmail] = useState<string>("");
     const [password, setPassword] = useState<string>("");
     const [isRegistering, setIsRegistering] = useState<boolean>(true);
-    const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 }); // Позиция мыши
+    const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const router = useRouter();
 
-    // Отслеживание движения мыши
     useEffect(() => {
         const handleMouseMove = (event: MouseEvent) => {
             const { clientX, clientY } = event;
             const centerX = window.innerWidth / 2;
             const centerY = window.innerHeight / 2;
-            // Вычисляем смещение относительно центра экрана
             const offsetX = (clientX - centerX) / centerX;
             const offsetY = (clientY - centerY) / centerY;
             setMousePos({ x: offsetX, y: offsetY });
@@ -34,7 +33,16 @@ const Auth: FC = () => {
     const handleAuth = async () => {
         try {
             if (isRegistering) {
-                await createUserWithEmailAndPassword(auth, email, password);
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                // Сохраняем данные пользователя в Firestore
+                await setDoc(doc(db, "users", user.uid), {
+                    email: user.email,
+                    displayName: user.email?.split("@")[0],
+                    role: "user", // По умолчанию роль user
+                    likedPosts: [],
+                    favoritePosts: [],
+                }, { merge: true });
                 alert("Пользователь успешно зарегистрирован!");
                 router.push("/posts");
             } else {
@@ -51,14 +59,10 @@ const Auth: FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-200 flex items-center justify-center relative overflow-hidden">
-            {/* Фоновая форма с градиентом и закруглением */}
             <div className="absolute top-0 right-0 w-1/2 h-full bg-white rounded-l-full transform translate-x-1/4"></div>
 
-            {/* Контейнер контента */}
             <div className="relative z-10 flex items-center justify-between w-full max-w-6xl px-6">
-                {/* Левая часть с текстом, полями и кнопками */}
                 <div className="text-center">
-                    {/* Логотип */}
                     <div className="flex items-center justify-center mb-8">
                         <Image
                             src="/img/logo.png"
@@ -70,17 +74,14 @@ const Auth: FC = () => {
                         <span className="text-2xl font-bold text-gray-600">IT.PROGRESS</span>
                     </div>
 
-                    {/* Заголовок */}
                     <h1 className="text-4xl font-bold text-teal-600 mb-4">
                         Всё о программировании – ваш портал в мир кода
                     </h1>
 
-                    {/* Подзаголовок */}
                     <p className="text-gray-600 mb-8 max-w-md mx-auto">
                         Программируй будущее: погружайся в код, изучай технологии и вдохновляйся вместе с нами!
                     </p>
 
-                    {/* Поля ввода */}
                     <div className="mb-6">
                         <input
                             type="email"
@@ -98,7 +99,6 @@ const Auth: FC = () => {
                         />
                     </div>
 
-                    {/* Кнопки */}
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
                         <button
                             onClick={handleAuth}
@@ -115,35 +115,33 @@ const Auth: FC = () => {
                     </div>
                 </div>
 
-                {/* Правая часть с иллюстрацией и параллакс-эффектом */}
                 <div className="relative">
                     <Image
                         src="/img/person-with-laptop.jpg"
                         alt="Person with laptop"
                         className="w-70 h-auto object-contain transition-transform duration-200"
                         style={{
-                            transform: `translate(${mousePos.x * 20}px, ${mousePos.y * 20}px)`, // Параллакс для изображения
+                            transform: `translate(${mousePos.x * 20}px, ${mousePos.y * 20}px)`,
                         }}
                         width={400}
                         height={500}
                     />
-                    {/* Декоративные элементы с параллакс-эффектом */}
                     <div
                         className="absolute -top-10 -left-10 w-16 h-16 bg-teal-500 rounded-full opacity-20 transition-transform duration-200"
                         style={{
-                            transform: `translate(${mousePos.x * -10}px, ${mousePos.y * -10}px)`, // Параллакс для круга
+                            transform: `translate(${mousePos.x * -10}px, ${mousePos.y * -10}px)`,
                         }}
                     ></div>
                     <div
                         className="absolute -bottom-10 -right-10 w-12 h-12 bg-teal-500 rounded-full opacity-20 transition-transform duration-200"
                         style={{
-                            transform: `translate(${mousePos.x * 15}px, ${mousePos.y * 15}px)`, // Параллакс для круга
+                            transform: `translate(${mousePos.x * 15}px, ${mousePos.y * 15}px)`,
                         }}
                     ></div>
                     <div
                         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-teal-500 transition-transform duration-200"
                         style={{
-                            transform: `translate(${-mousePos.x * 30}px, ${-mousePos.y * 30}px)`, // Параллакс для звезды
+                            transform: `translate(${-mousePos.x * 30}px, ${-mousePos.y * 30}px)`,
                         }}
                     >
                         <svg
@@ -157,7 +155,7 @@ const Auth: FC = () => {
                     <div
                         className="absolute top-1/4 right-10 w-12 h-12 bg-teal-500 rounded-full opacity-20 transition-transform duration-200"
                         style={{
-                            transform: `translate(${mousePos.x * -5}px, ${mousePos.y * -5}px)`, // Параллакс для круга
+                            transform: `translate(${mousePos.x * -5}px, ${mousePos.y * -5}px)`,
                         }}
                     ></div>
                 </div>

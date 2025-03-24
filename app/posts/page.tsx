@@ -22,6 +22,7 @@ const Posts: FC = () => {
     const [likedPosts, setLikedPosts] = useState<string[]>([]);
     const [favoritePosts, setFavoritePosts] = useState<string[]>([]);
     const [userName, setUserName] = useState<string>("");
+    const [userRole, setUserRole] = useState<string>(""); // Добавляем роль пользователя
     const [filterMode, setFilterMode] = useState<"all" | "liked" | "favorite">("all");
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     const router = useRouter();
@@ -29,7 +30,6 @@ const Posts: FC = () => {
 
     useEffect(() => {
         const fetchPostsAndCategories = async () => {
-            // Загрузка постов
             const postsRef = collection(db, "posts");
             const snapshot = await getDocs(postsRef);
             const postsData = snapshot.docs.map((doc) => ({
@@ -38,7 +38,6 @@ const Posts: FC = () => {
             } as Post));
             setPosts(postsData);
 
-            // Загрузка категорий
             const categoriesRef = collection(db, "categories");
             const categoriesSnapshot = await getDocs(categoriesRef);
             const categoriesData = categoriesSnapshot.docs.map((doc) => ({
@@ -57,14 +56,17 @@ const Posts: FC = () => {
                     setLikedPosts(data.likedPosts || []);
                     setFavoritePosts(data.favoritePosts || []);
                     setUserName(data.displayName || user.email?.split("@")[0] || "Пользователь");
+                    setUserRole(data.role || "user"); // Устанавливаем роль
                 } else {
                     await setDoc(userRef, {
                         displayName: user.email?.split("@")[0],
                         email: user.email,
                         likedPosts: [],
                         favoritePosts: [],
+                        role: "user", // По умолчанию роль user
                     }, { merge: true });
                     setUserName(user.email?.split("@")[0] || "Пользователь");
+                    setUserRole("user");
                 }
             }
         };
@@ -118,6 +120,11 @@ const Posts: FC = () => {
         router.push("/upload");
     };
 
+    const handleAdminPanelClick = () => {
+        setIsMenuOpen(false);
+        router.push("/admin");
+    };
+
     const handleLogout = async () => {
         setIsMenuOpen(false);
         await signOut(auth);
@@ -128,7 +135,6 @@ const Posts: FC = () => {
         setIsMenuOpen(!isMenuOpen);
     };
 
-    // Функция для получения названия категории по ID
     const getCategoryName = (categoryId?: string) => {
         if (!categoryId) return "Без категории";
         const category = categories.find((cat) => cat.id === categoryId);
@@ -138,7 +144,6 @@ const Posts: FC = () => {
     return (
         <PrivateRoute>
             <div className="min-h-screen bg-gray-200 flex flex-col">
-                {/* Header */}
                 <header className="p-4 bg-white shadow-md">
                     <div className="max-w-6xl mx-auto flex items-center justify-between">
                         <div className="flex items-center">
@@ -211,6 +216,14 @@ const Posts: FC = () => {
                                 </svg>
                                 <span className="text-sm font-medium">{userName}</span>
                             </button>
+                            {userRole === "admin" && (
+                                <button
+                                    onClick={handleAdminPanelClick}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition"
+                                >
+                                    Панель администратора
+                                </button>
+                            )}
                             <button
                                 onClick={handleLogout}
                                 className="px-3 py-1 bg-teal-500 text-white rounded-full hover:bg-teal-600 transition"
@@ -305,6 +318,14 @@ const Posts: FC = () => {
                                     </svg>
                                     <span className="text-sm font-medium">{userName}</span>
                                 </button>
+                                {userRole === "admin" && (
+                                    <button
+                                        onClick={handleAdminPanelClick}
+                                        className="px-3 py-1 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition"
+                                    >
+                                        Панель администратора
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleLogout}
                                     className="px-3 py-1 bg-teal-500 text-white rounded-full hover:bg-teal-600 transition"
@@ -316,7 +337,6 @@ const Posts: FC = () => {
                     )}
                 </header>
 
-                {/* Основной контент */}
                 <main className="flex-1 p-6">
                     <Menu />
                     <div className="max-w-6xl mx-auto">
@@ -401,7 +421,6 @@ const Posts: FC = () => {
                             </p>
                         )}
 
-                        {/* Пагинация */}
                         {totalPages > 1 && (
                             <div className="flex justify-center mt-8">
                                 {Array.from({ length: totalPages }, (_, index) => (
@@ -422,7 +441,6 @@ const Posts: FC = () => {
                     </div>
                 </main>
 
-                {/* Footer */}
                 <Footer />
             </div>
         </PrivateRoute>

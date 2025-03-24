@@ -1,11 +1,12 @@
-// Обновите тип Post, чтобы включить categories
 export interface Post {
     id: string;
     title: string;
     description: string;
+    content: string; // Добавляем поле для содержимого поста
     imageUrl: string;
-    categoryId?: string; // Исправлено: categoryId вместо category, сделано необязательным
-    userId?: string;
+    categoryId?: string | null; // Разрешаем null
+    userId: string; // Делаем userId обязательным
+    createdAt?: string;
 }
 
 export interface Category {
@@ -19,5 +20,5 @@ export interface Comment {
     userName: string;
     userId: string;
     timestamp: Date;
+    postId?: string;
 }
-

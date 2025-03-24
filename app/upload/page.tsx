@@ -13,14 +13,14 @@ import { Category } from "@/types";
 const Upload: FC = () => {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+    const [content, setContent] = useState(""); // Добавляем состояние для содержимого
     const [image, setImage] = useState<File | null>(null);
-    const [categoryId, setCategoryId] = useState(""); // Исправлено: categoryId вместо category
+    const [categoryId, setCategoryId] = useState("");
     const [categories, setCategories] = useState<Category[]>([]);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const { user } = useAuth();
 
-    // Загрузка категорий
     useEffect(() => {
         const fetchCategories = async () => {
             try {
@@ -47,24 +47,24 @@ const Upload: FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!title || !description || !image || !categoryId) {
+        if (!title || !description || !content || !image || !categoryId) {
             setError("Пожалуйста, заполните все поля.");
             return;
         }
 
         try {
-            // Загрузка изображения в Firebase Storage
             const imageRef = ref(storage, `images/${image.name}`);
             await uploadBytes(imageRef, image);
             const imageUrl = await getDownloadURL(imageRef);
 
-            // Создание нового поста
             await addDoc(collection(db, "posts"), {
                 title,
                 description,
+                content, // Сохраняем содержимое
                 imageUrl,
-                categoryId, // Исправлено: categoryId вместо category
+                categoryId,
                 userId: user?.uid,
+                createdAt: new Date().toISOString(),
             });
 
             router.push("/posts");
@@ -77,7 +77,6 @@ const Upload: FC = () => {
     return (
         <PrivateRoute>
             <div className="min-h-screen bg-gray-200 flex flex-col">
-                {/* Header */}
                 <header className="p-4 bg-white shadow-md">
                     <div className="max-w-6xl mx-auto flex items-center justify-between">
                         <h1 className="text-2xl font-bold text-gray-600">Загрузка поста</h1>
@@ -90,7 +89,6 @@ const Upload: FC = () => {
                     </div>
                 </header>
 
-                {/* Основной контент */}
                 <main className="flex-1 p-6">
                     <div className="max-w-6xl mx-auto">
                         <h2 className="text-3xl font-bold text-teal-600 mb-4 text-center">
@@ -115,6 +113,16 @@ const Upload: FC = () => {
                                     onChange={(e) => setDescription(e.target.value)}
                                     className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                                     rows={4}
+                                    required
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-600 mb-2">Содержимое</label>
+                                <textarea
+                                    value={content}
+                                    onChange={(e) => setContent(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    rows={6}
                                     required
                                 />
                             </div>
@@ -154,7 +162,6 @@ const Upload: FC = () => {
                     </div>
                 </main>
 
-                {/* Footer */}
                 <Footer />
             </div>
         </PrivateRoute>
