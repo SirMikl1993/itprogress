@@ -2,7 +2,7 @@
 
 import { FC, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image"; // Import Image component
+import Image from "next/image";
 import { collection, getDocs, doc, getDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
@@ -10,7 +10,7 @@ import { Post, Category, Comment } from "@/types";
 import { Footer } from "@/app/sections/Footer";
 import Link from "next/link";
 
-const Posts: FC = () => {
+const PostsPage: FC = () => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [comments, setComments] = useState<Comment[]>([]);
@@ -300,4 +300,4 @@ const Posts: FC = () => {
     );
 };
 
-export default Posts;
+export default PostsPage;

@@ -2,7 +2,7 @@
 
 import { FC, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image"; // Import Image component
+import Image from "next/image";
 import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -394,7 +394,7 @@ const AdminPanel: FC = () => {
                                                         <h3 className="text-lg font-semibold">{post.title}</h3>
                                                         <p className="text-gray-600 mb-2">{post.description}</p>
                                                         <p className="text-gray-500 text-sm">
-                                                            Категория: {categories.find((cat) => cat.id === post.categoryId)?.name || "Без категории"}
+                                                            Категория: {categories.find((cat) => cat.id === (post.categoryId ?? undefined))?.name || "Без категории"}
                                                         </p>
                                                         <p className="text-gray-500 text-sm">
                                                             Дата: {formatDate(post.createdAt ? new Date(post.createdAt) : undefined)}

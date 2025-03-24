@@ -2,7 +2,7 @@
 
 import { FC, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image"; // Import Image component
+import Image from "next/image";
 import { collection, getDocs, doc, getDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
