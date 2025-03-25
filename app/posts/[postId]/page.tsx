@@ -11,7 +11,7 @@ import { Post, Comment } from "@/types";
 const PostDetail: FC = () => {
     const { postId } = useParams<{ postId: string }>();
     const [post, setPost] = useState<Post | null>(null);
-    const [authorName, setAuthorName] = useState<string>("Неизвестный автор"); // Состояние для имени автора
+    const [authorName, setAuthorName] = useState<string>("Неизвестный автор");
     const [comments, setComments] = useState<Comment[]>([]);
     const [newComment, setNewComment] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -197,7 +197,7 @@ const PostDetail: FC = () => {
                     {/* Содержимое */}
                     <div className="bg-gray-100 p-3 rounded-lg mb-4 w-full">
                         <h2 className="text-lg font-semibold text-gray-700 mb-2">Содержимое:</h2>
-                        <p className="text-gray-600 w-full whitespace-pre-wrap">{post.content || "Без содержимого"}</p>
+                        <p className="text-gray-600 w-full">{post.content || "Без содержимого"}</p>
                     </div>
 
                     {/* Дата создания */}

@@ -4,7 +4,7 @@ export interface Post {
     description: string;
     content: string; // Добавляем поле для содержимого поста
     imageUrl: string;
-    categoryId?: string; // Разрешаем null
+    categoryId?: string;
     userId: string; // Делаем userId обязательным
     createdAt?: string;
 }

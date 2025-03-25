@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, addDoc } from "firebase/firestore";
@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import PrivateRoute from "../../components/PrivateRoute";
 import { Post, Category, Comment } from "@/types";
 import { Footer } from "@/app/sections/Footer";
+import { debounce } from "lodash"; // Импортируем debounce из lodash
 
 interface AppUser {
     id: string;
@@ -94,10 +95,25 @@ const AdminPanel: FC = () => {
         fetchData();
     }, [user, router]);
 
+    // Debounced функция для обновления searchQuery
+    const debouncedSetSearchQuery = useCallback(
+        debounce((value: string) => {
+            setSearchQuery(value);
+            setCurrentPage(1); // Сбрасываем страницу при изменении поиска
+        }, 300), // Задержка 300ms
+        []
+    );
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        debouncedSetSearchQuery(e.target.value);
+    };
+
+    // Фильтрация постов по строке поиска
     const filteredPosts = posts.filter((post) =>
         post.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    // Сортировка отфильтрованных постов
     const sortedPosts = [...filteredPosts].sort((a, b) => {
         if (sortBy === "date") {
             const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -110,6 +126,7 @@ const AdminPanel: FC = () => {
         }
     });
 
+    // Пагинация
     const indexOfLastPost = currentPage * postsPerPage;
     const indexOfFirstPost = indexOfLastPost - postsPerPage;
     const currentPosts = sortedPosts.slice(indexOfFirstPost, indexOfLastPost);
@@ -262,6 +279,12 @@ const AdminPanel: FC = () => {
 
     const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
+    // Генерация списка номеров страниц
+    const pageNumbers = [];
+    for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+    }
+
     return (
         <PrivateRoute>
             <div className="min-h-screen bg-gray-200 flex flex-col">
@@ -284,11 +307,7 @@ const AdminPanel: FC = () => {
                             <div className="mb-4 flex gap-4 flex-wrap">
                                 <input
                                     type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => {
-                                        setSearchQuery(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
+                                    onChange={handleSearchChange}
                                     placeholder="Поиск по названию..."
                                     className="p-2 border rounded-lg flex-1 min-w-[200px]"
                                 />
@@ -315,7 +334,6 @@ const AdminPanel: FC = () => {
                                     <option value="desc">По убыванию</option>
                                 </select>
                             </div>
-
                             {currentPosts.length === 0 ? (
                                 <p className="text-gray-500">Посты не найдены.</p>
                             ) : (
@@ -419,25 +437,22 @@ const AdminPanel: FC = () => {
                                         ))}
                                     </div>
 
+                                    {/* Пагинация с номерами страниц */}
                                     {sortedPosts.length > postsPerPage && (
-                                        <div className="flex justify-center mt-4">
-                                            <button
-                                                onClick={() => paginate(currentPage - 1)}
-                                                disabled={currentPage === 1}
-                                                className="px-4 py-2 bg-gray-300 text-black rounded-l disabled:opacity-50 hover:bg-gray-400 transition"
-                                            >
-                                                Предыдущая
-                                            </button>
-                                            <span className="px-4 py-2 bg-gray-200">
-                                                Страница {currentPage} из {totalPages}
-                                            </span>
-                                            <button
-                                                onClick={() => paginate(currentPage + 1)}
-                                                disabled={currentPage === totalPages}
-                                                className="px-4 py-2 bg-gray-300 text-black rounded-r disabled:opacity-50 hover:bg-gray-400 transition"
-                                            >
-                                                Следующая
-                                            </button>
+                                        <div className="flex justify-center mt-4 space-x-2">
+                                            {pageNumbers.map((number) => (
+                                                <button
+                                                    key={number}
+                                                    onClick={() => paginate(number)}
+                                                    className={`px-4 py-2 rounded-lg transition ${
+                                                        currentPage === number
+                                                            ? "bg-teal-500 text-white"
+                                                            : "bg-gray-300 text-black hover:bg-gray-400"
+                                                    }`}
+                                                >
+                                                    {number}
+                                                </button>
+                                            ))}
                                         </div>
                                     )}
                                 </>
